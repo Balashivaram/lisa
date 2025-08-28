@@ -53,6 +53,9 @@ class StorageConfigurations:
     GSAMSICLIENTID = "6f5a4b4b-8ca9-47b8-a65b-50b249dafa6b"
     GSASTORAGEACCOUNTNAME = "gsateststorage"
 
+class logFileNames:
+    L4LOGS = "azfw_l4.log"
+
 class TCPProtocolConstants:
     RULEFILENAME = "tcpRule.json"
     PREROUTINGCHAIN = [

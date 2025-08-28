@@ -125,11 +125,34 @@ async def verifyIPTables(iptablesDump, arraytoMatch, log):
             return False
     return True
 
+def setupNginx(node, log):
+
+    node.execute("tdnf -y install nginx", sudo=True)
+    node.execute("systemctl enable nginx", sudo=True)
+    node.execute("systemctl start nginx", sudo=True)
+
+
+
+def verifyLogs(node, fileName, clientNICIPAddr, serverNICIPAddr, protocol, reload, log):
+    log.info(f"Verifying logs in {fileName} from {clientNICIPAddr} to {serverNICIPAddr} with protocol {protocol.upper()}")
+    cmd = f"bash -c \"grep -E '{clientNICIPAddr}.*{serverNICIPAddr}.*{protocol.upper()}' /var/log/{fileName}\""
+    result = node.execute(cmd, sudo=True)
+    log.info(f"Log Verification Result : {result.stdout}")
+
+    if reload and len(result.stdout.splitlines()) >= 2:
+        log.info(f"Log Entry Found after reloading rules, Result : {result.stdout}")
+        return 1
+    elif len(result.stdout.splitlines()) >= 1:
+        log.info(f"Log Entry Found before reloading rules, Result : {result.stdout}")
+        return 1
+    else:
+        return 0
+
 def verifyConntrackEntry(node, clientNICIPAddr, serverNICIPAddr, protocol, mask, log):
     log.info(f"Verifying conntrack entry for Protocol {protocol} from {clientNICIPAddr} to {serverNICIPAddr} in node {node.name}")
     result = node.execute(f"bash -c \"conntrack -L | grep '{clientNICIPAddr}' | grep '{serverNICIPAddr}' | grep '{protocol}' | grep '{mask}'\"", sudo=True)
     if len(result.stdout.splitlines()) > 1:
-        log.info("Conntrack Entry Found")
+        log.info(f"Conntrack Entry Found, Result : {result.stdout}")
         return 1
     else:
         return 0

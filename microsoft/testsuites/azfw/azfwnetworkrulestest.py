@@ -16,7 +16,8 @@ from .azfwUtility import (
     verifyIPTables,
     verifyConntrackEntry,
     ipv4_to_lpm,
-    getNodesNICandIPaddr
+    getNodesNICandIPaddr,
+    verifyLogs
 )
 from .azFWConstants import (
     ProtocolConstants,
@@ -28,7 +29,8 @@ from .azFWConstants import (
     TCPProtocolConstants,
     ICMPProtocolConstants,
     UDPProtocolConstants,
-    NetworkRules
+    NetworkRules,
+    logFileNames
 )
 # from lisa.sut_orchestrator.azure.common import add_user_assign_identity
 from lisa import (
@@ -47,7 +49,6 @@ from lisa.tools import Ping as ping
 from lisa.tools import Sysctl as sysctl
 from time import sleep
 import re
-from lisa.features import NetworkInterface
 from lisa.sut_orchestrator.azure.common import (
     get_node_context,
 )
@@ -158,10 +159,11 @@ def testICMPTraffic(firewallNode, clientNode, clientNICName, clientNICIPAddr, se
         f"Failed to find conntrack entry for {ProtocolConstants.ICMP} traffic from {clientNICIPAddr} to {serverNICIPAddr} in node {firewallNode.name} with mask {ConnTrackMarks.ACTIVE}"
     ).is_equal_to(1)
 
+    assert_that(verifyLogs(firewallNode, logFileNames.L4LOGS, clientNICIPAddr, serverNICIPAddr, ProtocolConstants.ICMP, False, log)).described_as(
+        f"Failed to find log entry for {ProtocolConstants.ICMP} traffic from {clientNICIPAddr} to {serverNICIPAddr} in node {firewallNode.name} before reloading firewall Rules"
+    ).is_equal_to(1)
 
     log.info(f"Reloading Firewall Rules {ICMPProtocolConstants.RULEFILENAME}")
-
-
     assert_that(reloadRules(firewallNode, ICMPProtocolConstants.RULEFILENAME, StorageConfigurations.GSAMANAGEDIDENTITY, log)).described_as(
         f"Firewall Rules Reload Failed for {ProtocolConstants.ICMP} while using ruleConfig {ICMPProtocolConstants.RULEFILENAME}"        
     )
@@ -170,7 +172,6 @@ def testICMPTraffic(firewallNode, clientNode, clientNICName, clientNICIPAddr, se
     assert_that(verifyConntrackEntry(firewallNode, clientNICIPAddr, serverNICIPAddr, ProtocolConstants.ICMP, ConnTrackMarks.RESET, log)).described_as(
         f"Failed to find conntrack entry for {ProtocolConstants.ICMP} traffic from {clientNICIPAddr} to {serverNICIPAddr} in node {firewallNode.name} with mask {ConnTrackMarks.RESET}"
     ).is_equal_to(1)
-
 
     result = firewallNode.execute(f"iptables-save",sudo=True)
     log.debug(f"IPTables Dump after reloading rules in protocol {ProtocolConstants.ICMP}: {result.stdout}")
@@ -189,6 +190,10 @@ def testICMPTraffic(firewallNode, clientNode, clientNICName, clientNICIPAddr, se
 
     assert_that(verifyConntrackEntry(firewallNode, clientNICIPAddr, serverNICIPAddr, ProtocolConstants.ICMP, ConnTrackMarks.ACTIVE, log)).described_as(
         f"Failed to find conntrack entry for {ProtocolConstants.ICMP} traffic from {clientNICIPAddr} to {serverNICIPAddr} in node {firewallNode.name} with mask {ConnTrackMarks.ACTIVE}"
+    ).is_equal_to(1)
+
+    assert_that(verifyLogs(firewallNode, logFileNames.L4LOGS, clientNICIPAddr, serverNICIPAddr, ProtocolConstants.ICMP, True, log)).described_as(
+        f"Failed to find log entry for {ProtocolConstants.ICMP} traffic from {clientNICIPAddr} to {serverNICIPAddr} in node {firewallNode.name} after reloading firewall Rules"
     ).is_equal_to(1)
 
 
@@ -254,6 +259,10 @@ def testTCPUDPTraffic(firewallNode,clientNICName, clientNode,serverNode,serverNI
     ).is_equal_to(1)
 
 
+    assert_that(verifyLogs(firewallNode, logFileNames.L4LOGS, clientNICIPAddr, serverNICIPAddr, protocol, False, log)).described_as(
+        f"Failed to find log entry for {protocol} traffic from {clientNICIPAddr} to {serverNICIPAddr} in node {firewallNode.name} before reloading firewall Rules"
+    ).is_equal_to(1)
+
     log.info(f"Reloading Firewall Rules {ruleFileName}")
     assert_that(reloadRules(firewallNode, ruleFileName, StorageConfigurations.GSAMANAGEDIDENTITY, log)).described_as(
         f"Firewall Rules Reload Failed for {protocol} while using ruleConfig {ruleFileName}"
@@ -275,12 +284,17 @@ def testTCPUDPTraffic(firewallNode,clientNICName, clientNode,serverNode,serverNI
         f"Failed to find conntrack entry for {protocol} traffic from {clientNICIPAddr} to {serverNICIPAddr} in node {firewallNode.name} with mask {ConnTrackMarks.RESET}"
     ).is_equal_to(1)
 
+
     assert_that(generateTraffic(clientNode, serverNode, protocol, port, clientNICIPAddr, clientNICName, serverNICIPAddr, log)).described_as(
         f"Failed to generate {protocol} traffic from {clientNICIPAddr} to {serverNICIPAddr} after reloading firewall Rules"
     ).is_equal_to(1)
 
     assert_that(verifyConntrackEntry(firewallNode, clientNICIPAddr, serverNICIPAddr, protocol, ConnTrackMarks.ACTIVE, log)).described_as(
         f"Failed to find conntrack entry for {protocol} traffic from {clientNICIPAddr} to {serverNICIPAddr} in node {firewallNode.name} with mask {ConnTrackMarks.ACTIVE}"
+    ).is_equal_to(1)
+
+    assert_that(verifyLogs(firewallNode, logFileNames.L4LOGS, clientNICIPAddr, serverNICIPAddr, protocol, True, log)).described_as(
+        f"Failed to find log entry for {protocol} traffic from {clientNICIPAddr} to {serverNICIPAddr} in node {firewallNode.name} after reloading firewall Rules"
     ).is_equal_to(1)
 
   
